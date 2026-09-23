@@ -7,4 +7,4 @@ npm install
 npm run dev
 ```
 
-WASD moves or drives. Space is claws. Hold F to bite, take a car, board the Riverfront streetcar, or answer a payphone. A turns left, D turns right. M opens the map.
+WASD moves or drives on a keyboard. On a phone, drag the left side to walk or steer, drag the right side to look, and use Bite and Claw. A turns left, D turns right.

@@ -86,6 +86,7 @@ declare global {
       setMove: (x: number, y: number) => void;
       setSprint: (held: boolean) => void;
       addYaw: (delta: number) => void;
+      cycleRadio: () => void;
     };
   }
 }
@@ -162,6 +163,9 @@ export function startGame(view: HTMLCanvasElement, mini: HTMLCanvasElement, big:
   let steerOverride = false;
   let dragging = false;
   let orbitHold = 0;
+  let touchLookId: number | null = null;
+  let touchLookX = 0;
+  let radioPulse = false;
 
   const onKeyDown = (e: KeyboardEvent) => {
     keys.add(e.code);
@@ -172,12 +176,29 @@ export function startGame(view: HTMLCanvasElement, mini: HTMLCanvasElement, big:
   const onContext = (e: Event) => e.preventDefault();
   const onPointerDown = (e: PointerEvent) => {
     if (e.button === 2) dragging = true;
+    if (e.pointerType === "touch") {
+      if (e.target === view && useGame.getState().phase === "play") {
+        touchLookId = e.pointerId;
+        touchLookX = e.clientX;
+      }
+      return;
+    }
     if (e.button === 0 && e.target === view && useGame.getState().phase === "play") attackPulse = true;
   };
   const onPointerUp = (e: PointerEvent) => {
     if (e.button === 2) dragging = false;
+    if (touchLookId === e.pointerId) touchLookId = null;
   };
   const onPointerMove = (e: PointerEvent) => {
+    if (touchLookId === e.pointerId) {
+      const dx = e.clientX - touchLookX;
+      touchLookX = e.clientX;
+      if (dx !== 0) {
+        camYaw -= dx * 0.006;
+        orbitHold = 1.15;
+      }
+      return;
+    }
     if (!dragging) return;
     camYaw -= e.movementX * 0.005;
     orbitHold = 1.1;
@@ -1501,6 +1522,9 @@ export function startGame(view: HTMLCanvasElement, mini: HTMLCanvasElement, big:
       camYaw -= delta;
       orbitHold = 1.15;
     },
+    cycleRadio: () => {
+      radioPulse = true;
+    },
   };
 
   if (seenSave && mission > 0) {
@@ -1521,11 +1545,12 @@ export function startGame(view: HTMLCanvasElement, mini: HTMLCanvasElement, big:
     if (phase === "play") {
       const useEdge = (keys.has("KeyF") && !prev.has("KeyF")) || usePulse;
       const attackEdge = (keys.has("Space") && !prev.has("Space")) || (keys.has("KeyJ") && !prev.has("KeyJ")) || attackPulse;
-      const radioEdge = keys.has("KeyR") && !prev.has("KeyR");
+      const radioEdge = (keys.has("KeyR") && !prev.has("KeyR")) || radioPulse;
       const mapEdge = keys.has("KeyM") && !prev.has("KeyM");
       const pauseEdge = (keys.has("Escape") && !prev.has("Escape")) || (keys.has("KeyP") && !prev.has("KeyP"));
       usePulse = false;
       attackPulse = false;
+      radioPulse = false;
       if (mapEdge) useGame.getState().toggleMap();
       if (pauseEdge) useGame.getState().setPhase("pause");
       simAcc += frameDt;

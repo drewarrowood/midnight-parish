@@ -54,10 +54,15 @@
 
 .touch-controls {
   display: none;
+  touch-action: none;
 }
 
-@media (pointer: coarse), (max-width: 800px) {
+@media (pointer: coarse), (max-width: 900px) {
   .touch-controls {
-    display: flex;
+    display: block;
   }
+}
+
+html[data-touch="1"] .touch-controls {
+  display: block;
 }

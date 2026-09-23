@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { ArrowUp, Droplets, Map, Moon, Skull, Star, Volume2, VolumeX } from "lucide-react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { ArrowUp, Droplets, Map, Moon, Pause, Skull, Star, Volume2, VolumeX } from "lucide-react";
 import { unlockAudio } from "@/game/audio";
 import { startGame } from "@/game/engine";
 import { useGame } from "@/game/store";
@@ -8,6 +8,7 @@ export function GameShell() {
   const viewRef = useRef<HTMLCanvasElement>(null);
   const miniRef = useRef<HTMLCanvasElement>(null);
   const bigRef = useRef<HTMLCanvasElement>(null);
+  const rootRef = useRef<HTMLElement>(null);
   const hud = useGame();
 
   useEffect(() => {
@@ -16,6 +17,27 @@ export function GameShell() {
     const big = bigRef.current;
     if (!view || !mini || !big) return;
     return startGame(view, mini, big);
+  }, []);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    const mark = () => {
+      const coarse = window.matchMedia("(pointer: coarse)").matches;
+      const phone = navigator.maxTouchPoints > 0 && window.innerWidth <= 1200;
+      document.documentElement.dataset.touch = coarse || phone ? "1" : "0";
+    };
+    mark();
+    const block = (e: TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("[data-scroll]")) return;
+      e.preventDefault();
+    };
+    root?.addEventListener("touchmove", block, { passive: false });
+    window.addEventListener("resize", mark);
+    return () => {
+      root?.removeEventListener("touchmove", block);
+      window.removeEventListener("resize", mark);
+    };
   }, []);
 
   function onStart() {
@@ -28,7 +50,7 @@ export function GameShell() {
   const showMap = hud.mapOpen && showHud;
 
   return (
-    <main className="relative h-dvh w-full select-none overflow-hidden bg-bg text-fg">
+    <main ref={rootRef} className="relative h-dvh w-full touch-none select-none overflow-hidden bg-bg text-fg">
       <canvas ref={viewRef} className="absolute inset-0 h-full w-full touch-none outline-none" tabIndex={0} />
       <canvas
         ref={miniRef}
@@ -51,6 +73,18 @@ export function GameShell() {
 
           <div className="absolute top-3 right-3 flex flex-col items-end gap-2 sm:top-4 sm:right-4">
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="bg-surface/80 border-border pointer-events-auto flex size-11 items-center justify-center rounded-md border"
+                onClick={() => {
+                  const phase = useGame.getState().phase;
+                  if (phase === "play") useGame.getState().setPhase("pause");
+                  else if (phase === "pause") useGame.getState().setPhase("play");
+                }}
+                aria-label={hud.phase === "pause" ? "Resume" : "Pause"}
+              >
+                <Pause className="size-5" />
+              </button>
               <button
                 type="button"
                 className="bg-surface/80 border-border pointer-events-auto flex size-11 items-center justify-center rounded-md border"
@@ -95,7 +129,7 @@ export function GameShell() {
             </div>
           )}
 
-          <div className="hud-fade absolute inset-x-0 bottom-0 px-3 pt-16 pb-4 sm:px-5 sm:pb-5">
+          <div className="hud-fade absolute inset-x-0 bottom-0 px-3 pt-16 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-5 sm:pb-5">
             <div className="mx-auto flex max-w-xl flex-col gap-2">
               {hud.banner && <p className="font-display text-accent text-center text-2xl tracking-wide">{hud.banner}</p>}
               {hud.popup && <p className="text-accent text-center text-sm">{hud.popup}</p>}
@@ -144,7 +178,7 @@ export function GameShell() {
 
       {hud.phase === "menu" && (
         <div className="absolute inset-0 z-20 flex items-end justify-center sm:items-center">
-          <section className="border-border bg-surface/90 m-3 max-h-full w-full max-w-xl overflow-y-auto rounded-md border p-5 sm:m-6 sm:p-7">
+          <section data-scroll className="border-border bg-surface/90 m-3 max-h-full w-full max-w-xl overflow-y-auto rounded-md border p-5 sm:m-6 sm:p-7">
             <p className="text-accent font-display text-sm tracking-widest">NEW ORLEANS · 1991</p>
             <h1 className="font-display text-5xl leading-none tracking-wide sm:text-6xl">Midnight Parish</h1>
             <p className="text-muted mt-3 text-sm leading-relaxed sm:text-base">
@@ -159,7 +193,21 @@ export function GameShell() {
             >
               Start
             </button>
-            <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:hidden">
+              <p>
+                <span className="text-accent">Stick</span> <span className="text-muted">walk or drive</span>
+              </p>
+              <p>
+                <span className="text-accent">Drag</span> <span className="text-muted">look around</span>
+              </p>
+              <p>
+                <span className="text-accent">Bite</span> <span className="text-muted">hold to feed</span>
+              </p>
+              <p>
+                <span className="text-accent">Claw</span> <span className="text-muted">strike</span>
+              </p>
+            </div>
+            <div className="mt-5 hidden grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid">
               <p>
                 <span className="text-accent">WASD</span> <span className="text-muted">move or drive</span>
               </p>
@@ -235,80 +283,201 @@ export function GameShell() {
   );
 }
 
+function actionLabel(prompt: string) {
+  const p = prompt.toLowerCase();
+  if (p.includes("step off")) return "Off";
+  if (p.includes("exit")) return "Exit";
+  if (p.includes("feed") || p.includes("bite")) return "Bite";
+  if (p.includes("phone")) return "Call";
+  if (p.includes("board") || p.includes("riverfront")) return "Ride";
+  if (p.includes("rest") || p.includes("dusk")) return "Rest";
+  if (p.includes("take") || p.includes("cruiser")) return "Drive";
+  return "Use";
+}
+
 function TouchControls() {
-  const origin = useRef<{ x: number; y: number; id: number } | null>(null);
+  const prompt = useGame((s) => s.prompt);
+  const inCar = useGame((s) => s.inCar);
+  const moveId = useRef<number | null>(null);
+  const lookId = useRef<number | null>(null);
+  const lookX = useRef(0);
+  const origin = useRef({ x: 0, y: 0 });
+  const [stick, setStick] = useState<{ x: number; y: number; kx: number; ky: number } | null>(null);
+  const [sprint, setSprint] = useState(false);
+
+  useEffect(
+    () => () => {
+      window.__parish?.setMove(0, 0);
+      window.__parish?.setSprint(false);
+      window.__parish?.setUse(false);
+    },
+    [],
+  );
+
+  function endMove(id: number) {
+    if (moveId.current !== id) return;
+    moveId.current = null;
+    setStick(null);
+    window.__parish?.setMove(0, 0);
+  }
 
   return (
-    <div className="touch-controls pointer-events-none absolute inset-x-0 bottom-36 z-30 items-end justify-between px-3">
+    <div className="touch-controls pointer-events-none absolute inset-0 z-[15]">
       <div
-        className="border-border bg-surface/50 pointer-events-auto relative size-28 rounded-full border"
+        className="pointer-events-auto absolute top-32 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] left-0 w-1/2 touch-none"
+        aria-label="Move"
         onPointerDown={(e) => {
+          if (moveId.current != null) return;
+          e.preventDefault();
           e.currentTarget.setPointerCapture(e.pointerId);
-          origin.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = Math.min(rect.width - 58, Math.max(58, e.clientX - rect.left));
+          const y = Math.min(rect.height - 58, Math.max(58, e.clientY - rect.top));
+          moveId.current = e.pointerId;
+          origin.current = { x: e.clientX, y: e.clientY };
+          setStick({ x, y, kx: 0, ky: 0 });
         }}
         onPointerMove={(e) => {
-          if (!origin.current || origin.current.id !== e.pointerId) return;
+          if (moveId.current !== e.pointerId) return;
           const dx = e.clientX - origin.current.x;
           const dy = e.clientY - origin.current.y;
-          const mag = Math.hypot(dx, dy) || 1;
-          const k = Math.min(1, mag / 48);
-          window.__parish?.setMove((dx / mag) * k, (-dy / mag) * k);
-        }}
-        onPointerUp={(e) => {
-          if (origin.current?.id === e.pointerId) {
-            origin.current = null;
+          const mag = Math.hypot(dx, dy);
+          const max = 54;
+          const dead = 10;
+          if (mag < dead) {
             window.__parish?.setMove(0, 0);
+            setStick((s) => (s ? { ...s, kx: 0, ky: 0 } : s));
+            return;
           }
+          const nx = dx / mag;
+          const ny = dy / mag;
+          const k = Math.min(1, (mag - dead) / (max - dead));
+          window.__parish?.setMove(nx * k, -ny * k);
+          const reach = Math.min(mag, max);
+          setStick((s) => (s ? { ...s, kx: nx * reach, ky: ny * reach } : s));
         }}
-        onPointerCancel={() => {
-          origin.current = null;
-          window.__parish?.setMove(0, 0);
-        }}
-        aria-label="Move"
-      />
+        onPointerUp={(e) => endMove(e.pointerId)}
+        onPointerCancel={(e) => endMove(e.pointerId)}
+      >
+        {stick ? (
+          <div
+            className="border-accent/70 bg-surface/45 pointer-events-none absolute size-28 -translate-x-1/2 -translate-y-1/2 rounded-full border"
+            style={{ left: stick.x, top: stick.y }}
+          >
+            <div
+              className="bg-fg/90 absolute top-1/2 left-1/2 size-11 -translate-x-1/2 -translate-y-1/2 rounded-full"
+              style={{ marginLeft: stick.kx, marginTop: stick.ky }}
+            />
+          </div>
+        ) : (
+          <div className="border-fg/30 pointer-events-none absolute bottom-3 left-3 size-24 rounded-full border border-dashed" />
+        )}
+      </div>
+
       <div
-        className="pointer-events-auto mx-2 h-28 flex-1 touch-none"
+        className="pointer-events-auto absolute top-28 right-0 bottom-44 left-1/2 touch-none"
+        aria-label="Look"
         onPointerDown={(e) => {
+          if (lookId.current != null) return;
+          e.preventDefault();
           e.currentTarget.setPointerCapture(e.pointerId);
-          (e.currentTarget as HTMLDivElement).dataset.look = "1";
+          lookId.current = e.pointerId;
+          lookX.current = e.clientX;
         }}
         onPointerMove={(e) => {
-          if ((e.currentTarget as HTMLDivElement).dataset.look !== "1") return;
-          window.__parish?.addYaw(e.movementX * 0.006);
+          if (lookId.current !== e.pointerId) return;
+          const dx = e.clientX - lookX.current;
+          lookX.current = e.clientX;
+          if (dx !== 0) window.__parish?.addYaw(dx * 0.007);
         }}
         onPointerUp={(e) => {
-          delete (e.currentTarget as HTMLDivElement).dataset.look;
+          if (lookId.current === e.pointerId) lookId.current = null;
+        }}
+        onPointerCancel={(e) => {
+          if (lookId.current === e.pointerId) lookId.current = null;
         }}
       />
-      <div className="pointer-events-auto flex items-center gap-2">
-        <HoldButton label="Run" onHold={(v) => window.__parish?.setSprint(v)} />
-        <HoldButton label="Bite" onHold={(v) => window.__parish?.setUse(v)} />
-        <button
-          type="button"
-          className="bg-primary text-fg font-display size-14 rounded-full text-sm tracking-wide"
-          onPointerDown={(e) => {
-            e.preventDefault();
-            window.__parish?.attack();
-          }}
-        >
-          Claw
-        </button>
+
+      <div
+        className="pointer-events-auto absolute right-3 flex flex-col items-end gap-3"
+        style={{ bottom: "calc(7.25rem + env(safe-area-inset-bottom))" }}
+      >
+        {!inCar && (
+          <RoundButton
+            label="Run"
+            pressed={sprint}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              setSprint((on) => {
+                window.__parish?.setSprint(!on);
+                return !on;
+              });
+            }}
+          />
+        )}
+        <div className="flex items-center gap-3">
+          <RoundButton
+            label={actionLabel(prompt)}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.currentTarget.setPointerCapture(e.pointerId);
+              window.__parish?.setUse(true);
+            }}
+            onPointerUp={() => window.__parish?.setUse(false)}
+            onPointerCancel={() => window.__parish?.setUse(false)}
+          />
+          {inCar ? (
+            <RoundButton
+              label="Radio"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                window.__parish?.cycleRadio();
+              }}
+            />
+          ) : (
+            <RoundButton
+              label="Claw"
+              hot
+              onPointerDown={(e) => {
+                e.preventDefault();
+                window.__parish?.attack();
+              }}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function HoldButton({ label, onHold }: { label: string; onHold: (held: boolean) => void }) {
+function RoundButton({
+  label,
+  hot,
+  pressed,
+  onPointerDown,
+  onPointerUp,
+  onPointerCancel,
+}: {
+  label: string;
+  hot?: boolean;
+  pressed?: boolean;
+  onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>) => void;
+  onPointerUp?: () => void;
+  onPointerCancel?: () => void;
+}) {
   return (
     <button
       type="button"
-      className="border-border bg-surface/80 text-fg font-display size-14 rounded-full border text-sm tracking-wide"
-      onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId);
-        onHold(true);
-      }}
-      onPointerUp={() => onHold(false)}
-      onPointerCancel={() => onHold(false)}
+      className={`font-display touch-none size-16 rounded-full border text-sm tracking-wide ${
+        hot
+          ? "bg-primary text-fg border-primary"
+          : pressed
+            ? "bg-accent text-bg border-accent"
+            : "border-border bg-surface/80 text-fg"
+      }`}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
     >
       {label}
     </button>
