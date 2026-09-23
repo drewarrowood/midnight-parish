@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Midnight Parish">
+  <rect width="32" height="32" rx="6" fill="#0c0a0e"/>
+  <rect x="6" y="6.5" width="20" height="3" rx="0.6" fill="#e2b15a"/>
+  <path fill="#f4ead8" d="M8 9.5h6.2L11.1 26z"/>
+  <path fill="#f4ead8" d="M17.8 9.5H24L20.9 26z"/>
+  <path fill="#d1233c" d="M9.6 20.2 11.1 26l1.5-5.8z"/>
+  <path fill="#d1233c" d="M19.4 20.2 20.9 26l1.5-5.8z"/>
+</svg>
